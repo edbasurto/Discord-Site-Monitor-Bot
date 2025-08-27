@@ -1,0 +1,2 @@
+asyncping3==3.1.2
+anyio==4.10.0

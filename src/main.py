@@ -19,8 +19,6 @@ def validIP(textEntry: str):
     sec3 = textEntry[8]
 '''
 
-#input = input("Please enter IP address: ")
-
 #async def sitePing():
 
 def secToMillisec(seconds: float):

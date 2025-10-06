@@ -3,21 +3,7 @@ from asyncping3 import ping, verbose_ping
 import json
 import time
 import math
-
-'''
-Dependencies needed to run this
-
-asyncping3
-anyio
-'''
-
-'''
-maybe make a function that checks if the format of the ip is right? might not be needed
-def validIP(textEntry: str):
-    sec1 = textEntry[:3]
-    sec2 = textEntry[4:7]
-    sec3 = textEntry[8]
-'''
+from src.bot import bot, start_bot
 
 #async def sitePing():
 
@@ -25,20 +11,28 @@ def secToMillisec(seconds: float):
     return seconds * 1000
 
 async def pingSites(sites: dict):
-    for key in sites:
+    unreachable = []
+    for key, ip in sites.items():
         try:
-            pingSeconds = await ping(sites[key])
+            pingSeconds = await ping(ip)
             #print(pingSeconds)
             if pingSeconds is None:
-                print(f"{sites[key]}: Unreachable!")
+                print(f"{key} at {ip} is unreachable!")
+                # ADDED THESE TWO NEW LINES
+                unreachable.append(ip)
+                cog = bot.get_cog("MonitorCog")
+                if cog:
+                    await cog.send_alert(site=key, ip_address=ip)
+                print("{key}")
             else:
                 pingMilliseconds = secToMillisec(float(pingSeconds))
                 pingTimeStr = str(math.floor(pingMilliseconds * 100)/100.0)
                 print(key, ": " + pingTimeStr + " ms")
         except Exception as e:
             print(f"{key}: Error occured - {e}")
+    return unreachable
 
-async def main():
+async def monitor_loop():
     # Read from teh JSON file
     f = open("sites.json")
     jsonString = f.read()
@@ -53,4 +47,11 @@ async def main():
         print("\n")
         await asyncio.sleep(10)
 
-asyncio.run(main())
+async def main():
+    await asyncio.gather(
+        start_bot(),
+        monitor_loop()
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())

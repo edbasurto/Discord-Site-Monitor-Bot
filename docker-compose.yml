@@ -1,11 +1,11 @@
-version: "3.9"
-
 services:
   discord-site-monitor-bot:
     build: .
     image: discord-site-monitor-bot:latest
     container_name: discord-site-monitor-bot
     restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - ./src/sites.json:/app/sites.json:ro
     networks:

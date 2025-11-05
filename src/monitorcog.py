@@ -11,7 +11,7 @@ class MonitorCog(commands.Cog):
         self.alert_channel_id = ALERT_CHANNEL_ID
     
     # Sends a message to the designated alert channel with the site name that is down. passing ip in case you want to display ip as well
-    async def send_alert(self, site: str, ip_address: str, status_code: int = None):
+    async def send_alert(self, site: str, ip_address: str, status: int, status_code: int = None):
         # Checking if alert channel id was set in .env
         if not self.alert_channel_id:
             print("Channel to send alerts is not set! Make sure to set the ID in the .env file!")
@@ -23,13 +23,16 @@ class MonitorCog(commands.Cog):
             print("Could not find the alert channel {self.alert_channel_id}, are you sure you typed in the ID right in the .env?")
             return
         
-        # Message to send in alert channel
-        message = f"🚨 **ALERT:** `{site}` appears to be **DOWN**! Please head out to site ASAP!"
+        if status == 0:
+            # Message to send in alert channel
+            message = f"🚨 **ALERT:** `{site}` appears to be **DOWN**! Please head out to site ASAP!"
+        else:
+            message = f"🥳🎉 **SUCCESS!** `{site}` is back up and running!"
         if status_code:
             message += f" (HTTP {status_code})"
         # Sends the message to the alert channel
         await channel.send(message)
-    
+
     # Test command to ensure commands work
     @commands.command(name="ping")
     async def ping_command(self, ctx):

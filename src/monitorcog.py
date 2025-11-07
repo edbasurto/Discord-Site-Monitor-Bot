@@ -1,5 +1,6 @@
 import os
 from discord.ext import commands
+import src.main as main
 
 ALERT_CHANNEL_ID = int(os.getenv("ALERT_CHANNEL_ID", "0"))
 
@@ -32,6 +33,18 @@ class MonitorCog(commands.Cog):
             message += f" (HTTP {status_code})"
         # Sends the message to the alert channel
         await channel.send(message)
+
+    @commands.command(name="unreachable")
+    async def send_unreachable(self, ctx):
+        from src import main
+        print("main module id in cog:", id(main))
+        unreachable = main.get_unreachable_addresses()        
+        print(unreachable)
+        if not unreachable:
+            await ctx.send("All sites are currently reachable!")
+        else:
+            formatted = "\n".join(f"{name} ({ip})" for name, ip in unreachable.items())
+            await ctx.send(f"**Unreachable sites:**\n```\n{formatted}\n```")
 
     # Test command to ensure commands work
     @commands.command(name="ping")

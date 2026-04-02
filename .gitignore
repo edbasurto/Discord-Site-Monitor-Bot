@@ -3,3 +3,7 @@ src/sites.json
 src/sites1.json
 
 .env
+
+src/status.txt
+
+DEVNOTES.md

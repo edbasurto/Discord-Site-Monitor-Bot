@@ -1,82 +1,117 @@
 import asyncio
-from asyncping3 import ping, verbose_ping
+from asyncping3 import ping
 import json
-import time
-import math
+import os
 from src.bot import start_bot
-from src.status import unreachable
+import src.globalvars as globalvars
 
-#async def sitePing():
+SITES_FILE = os.getenv("SITES_FILE", "sites.json")
+STATUS_FILE = os.getenv("STATUS_FILE", "status.txt")
 
 def secToMillisec(seconds: float):
     return seconds * 1000
 
 async def pingSites(sites: dict):
     from src.bot import bot
+    lines = []
     cog = bot.get_cog("MonitorCog")
-    for key, ip in sites.items():
-        try:
-            pingSeconds = await ping(ip)
-            #print(pingSeconds)
-            noPingCount = 0
-            while(pingSeconds is None and noPingCount < 3):
-                print(f"Ping count {noPingCount}")
+    with open(STATUS_FILE, 'w') as file:
+        for key, ip in sites.items():
+            try:
                 pingSeconds = await ping(ip)
-                noPingCount += 1
-                await asyncio.sleep(0.5)
-            print(f"{ip}")
-            print(unreachable)
-            if key in unreachable:
-                print("in the list")
-            else:
-                print("not in the list")
-            if key in unreachable:
-                if noPingCount == 3:
-                    print(f"{ip} is currently down, skipping bot command")
-                else:
-                    print(f"{ip} is back up! Removing from unreachable list and sending discord message")
-                    pingMilliseconds = secToMillisec(float(pingSeconds))
-                    pingTimeStr = str(math.floor(pingMilliseconds * 100)/100.0)
-                    print(f"{key}: {pingTimeStr}ms")
-                    del unreachable[key]
+                noPingCount = 0
+                while pingSeconds is None and noPingCount < 3:
+                    print(f"Ping count {noPingCount}")
+                    pingSeconds = await ping(ip)
+                    noPingCount += 1
+                    await asyncio.sleep(0.5)
+                if key in globalvars.unreachable:
+                    if noPingCount == 3:
+                        print(f"{ip} is currently down, skipping bot command")
+                        lines.append(f"{key}: unreachable")
+                        file.write(f"{key}: unreachable\n")
+                    else:
+                        print(f"{ip} is back up! Removing from unreachable list and sending discord message")
+                        pingMilliseconds = secToMillisec(float(pingSeconds))
+                        pingTimeStr = f"{pingMilliseconds:.2f}"
+                        print(f"{key}: {pingTimeStr}ms")
+                        lines.append(f"{key}: {pingTimeStr}ms")
+                        file.write(f"{key}: {pingTimeStr}ms\n")
+                        del globalvars.unreachable[key]
+                        if cog:
+                            await cog.send_alert(site=key, ip_address=ip, status=1)
+                elif noPingCount == 3:
+                    print(f"{key} at {ip} is unreachable! Adding to unreachable list")
+                    globalvars.unreachable[key] = ip
                     if cog:
-                        await cog.send_alert(site=key, ip_address=ip, status=1)
-            elif noPingCount == 3:
-                print(f"{key} at {ip} is unreachable! Adding to unreachable list")
-                # ADDED THESE TWO NEW LINES
-                unreachable[key] = ip
-                #cog = bot.get_cog("MonitorCog")
-                if cog:
-                    await cog.send_alert(site=key, ip_address=ip, status=0)
-                print(f"{key}")
-            else:
-                pingMilliseconds = secToMillisec(float(pingSeconds))
-                pingTimeStr = str(math.floor(pingMilliseconds * 100)/100.0)
-                print(f"{key}: {pingTimeStr}ms")
-        except Exception as e:
-            print(f"{key}: Error occured - {e}")
-    print(unreachable)
-    import sys
-    print("main module id in pingSites:", id(sys.modules[__name__]))
-    return unreachable
+                        await cog.send_alert(site=key, ip_address=ip, status=0)
+                    lines.append(f"{key}: unreachable")
+                    file.write(f"{key}: unreachable\n")
+                else:
+                    pingMilliseconds = secToMillisec(float(pingSeconds))
+                    pingTimeStr = f"{pingMilliseconds:.2f}"
+                    print(f"{key}: {pingTimeStr}ms")
+                    lines.append(f"{key}: {pingTimeStr}ms")
+                    file.write(f"{key}: {pingTimeStr}ms\n")
+            except Exception as e:
+                print(f"{key}: Error occurred - {e}")
+    globalvars.status_message = "\n".join(lines)
+    return globalvars.unreachable
 
-#async def pingSite(site: str):
+def get_all_addresses():
+    with open(SITES_FILE) as f:
+        return json.load(f)
+
+def get_addresses():
+    return globalvars.addresses
+
 def get_unreachable_addresses():
-    return unreachable
+    return globalvars.unreachable
+
+def get_ping_status():
+    return globalvars.status_message
+
+async def ping_site(ip: str) -> float | None:
+    result = await ping(ip)
+    retries = 0
+    while result is None and retries < 3:
+        await asyncio.sleep(0.5)
+        result = await ping(ip)
+        retries += 1
+    if result is None:
+        return None
+    return secToMillisec(float(result))
+
+def add_site(name: str, ip: str):
+    globalvars.addresses[name] = ip
+    with open(SITES_FILE, 'w') as f:
+        json.dump(globalvars.addresses, f, indent=2)
+
+def update_site_ip(name: str, new_ip: str):
+    globalvars.addresses[name] = new_ip
+    globalvars.unreachable.pop(name, None)
+    with open(SITES_FILE, 'w') as f:
+        json.dump(globalvars.addresses, f, indent=2)
+
+def update_site_name(old_name: str, new_name: str):
+    ip = globalvars.addresses.pop(old_name)
+    globalvars.addresses[new_name] = ip
+    if old_name in globalvars.unreachable:
+        globalvars.unreachable[new_name] = globalvars.unreachable.pop(old_name)
+    with open(SITES_FILE, 'w') as f:
+        json.dump(globalvars.addresses, f, indent=2)
+
+def remove_site(name: str):
+    del globalvars.addresses[name]
+    globalvars.unreachable.pop(name, None)
+    with open(SITES_FILE, 'w') as f:
+        json.dump(globalvars.addresses, f, indent=2)
 
 async def monitor_loop():
-    # Read from teh JSON file
-    f = open("sites.json")
-    jsonString = f.read()
-    f.close()
-
-    # Convert the loaded JSON file to dict
-    addresses = json.loads(jsonString)
-
-    # Have this always running so it always pings
+    globalvars.addresses = get_all_addresses()
     while True:
-        await pingSites(addresses)
-        print("\n")
+        await pingSites(globalvars.addresses)
+        print()
         await asyncio.sleep(10)
 
 async def main():

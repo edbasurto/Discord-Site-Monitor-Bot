@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src/sites.json:/app/sites.json:ro
+      - ./src/sites.json:/app/sites.json
     networks:
       site-monitor-net:
 
